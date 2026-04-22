@@ -22,6 +22,7 @@ def _default_prompt_builder() -> Any:
 
 
 def _tool_sig(tool_name: str, tool_args: dict[str, Any]) -> str:
+    '''计算too_name+tool_args的sha256'''
     args = dict(tool_args or {})
     args.pop("confirmed", None)
     return json.dumps(
@@ -40,7 +41,8 @@ class QueryEngine:
     messages: list[dict[str, Any]] = field(default_factory=list) # 当前会话的消息历史（role, content格式）
     max_steps: int = 12 # 最大工具调用步数，防止无限循环
     pending_tool: dict[str, Any] | None = None
-    executed_tool_sigs: set[str] = field(default_factory=set)
+    executed_tool_sigs: set[str] = field(default_factory=set) # 记录已执行过的参数签名
+    tool_result_cache: dict[str, str] = field(default_factory=dict) # sig -> tool.run() 返回的JSON字符串
 
     def run(
         self,
@@ -101,6 +103,8 @@ class QueryEngine:
             if not tool_calls:
                 break
 
+            executed_any = False
+            duplicate_only = True
             for call in tool_calls: # 4. 执行工具调用
                 tool_name, tool_args, call_id = self._parse_tool_call(call)
                 if not tool_name or tool_name not in tool_registry:
@@ -119,22 +123,16 @@ class QueryEngine:
 
                 tool = tool_registry[tool_name] # 5. 执行工具
                 sig = _tool_sig(tool_name, tool_args)
-                if sig in self.executed_tool_sigs:
-                    self.messages.append(
-                        {
-                            "role": "tool",
-                            "name": tool_name,
-                            "tool_call_id": call_id,
-                            "content": json.dumps(
-                                {"ok": True, "skipped": True, "reason": "Duplicate tool call."},
-                                ensure_ascii=False,
-                            ),
-                        }
-                    )
+                cached = self.tool_result_cache.get(sig)
+                if cached is not None:
+                    self.messages.append({"role": "tool", "name": tool_name, "tool_call_id": call_id, "content": cached})
                     continue
                 try:
                     result = tool.run(**tool_args)
                     self.executed_tool_sigs.add(sig)
+                    self.tool_result_cache[sig] = result
+                    executed_any = True
+                    duplicate_only = False
                 except PermissionError as e: # 特殊处理：权限错误 → 返回确认请求
                     try:
                         payload = json.loads(str(e))
@@ -150,10 +148,34 @@ class QueryEngine:
                     return json.dumps(payload, ensure_ascii=False)
                 except Exception as e:
                     result = json.dumps({"ok": False, "error": repr(e)}, ensure_ascii=False)
+                    duplicate_only = False
 
                 self.messages.append( # 6. 保存工具结果
                     {"role": "tool", "name": tool_name, "tool_call_id": call_id, "content": result}
                 )
+
+            if (not executed_any) and duplicate_only:
+                self.messages.append(
+                    {
+                        "role": "system",
+                        "content": "[Loop guard] Tools were repeatedly called with the same arguments and served from cache. Please provide the final answer without calling tools again.",
+                    }
+                )
+                system_prompt2, user_prompt2 = self._build_prompts(
+                    user_id=user_id, session_id=session_id, instructions=instructions, subagent=subagent
+                )
+                model_msg2 = call_model(
+                    self.config.model_name,
+                    system_prompt=system_prompt2,
+                    user_prompt=user_prompt2,
+                    tools=[],
+                    tool_choice="none",
+                )
+                assistant_text2 = str(model_msg2.get("content") or "").strip()
+                if assistant_text2:
+                    self.messages.append({"role": "assistant", "content": assistant_text2})
+                    final_text = assistant_text2
+                break
         # 六、上下文压缩
         self.messages = self.context_manager.compact_messages(self.messages, user_id=user_id, session_id=session_id)
         # 七、触发记忆系统
@@ -180,10 +202,11 @@ class QueryEngine:
         confirmed: bool,
         instructions: str = "",
     ) -> str:
-        if self.pending_tool is None:
+        '''用于用户确认或拒绝之前挂起的工具调用'''
+        if self.pending_tool is None: # 没有待确认的工具
             return ""
 
-        if not confirmed:
+        if not confirmed: # 用户拒绝执行
             self.pending_tool = None
             self.messages.append({"role": "system", "content": "[User denied tool execution]"})
             return ""
@@ -202,7 +225,7 @@ class QueryEngine:
         sig = str(self.pending_tool.get("sig") or "") or _tool_sig(tool_name, tool_args)
         self.pending_tool = None
 
-        tool = tool_registry.get(tool_name)
+        tool = tool_registry.get(tool_name) # 检查工具是否存在，如果不存在则在消息历史中添加错误信息
         if tool is None:
             self.messages.append(
                 {
@@ -214,17 +237,19 @@ class QueryEngine:
             )
         else:
             tool_args["confirmed"] = True
-            try:
+            try: # 执行工具
                 result = tool.run(**tool_args)
                 if sig:
                     self.executed_tool_sigs.add(sig)
+                    self.tool_result_cache[sig] = result
             except Exception as e:
                 result = json.dumps({"ok": False, "error": repr(e)}, ensure_ascii=False)
+
             self.messages.append({"role": "tool", "name": tool_name, "tool_call_id": call_id, "content": result})
             self.messages.append(
                 {
                     "role": "system",
-                    "content": f"[Tool executed] {tool_name} has been executed successfully.",
+                    "content": f"[Tool executed] '{tool_name}:{call_id}' has been executed successfully.",
                 }
             )
 
@@ -251,6 +276,8 @@ class QueryEngine:
             if not tool_calls:
                 break
 
+            executed_any = False
+            duplicate_only = True
             for call in tool_calls:
                 tool_name2, tool_args2, call_id2 = self._parse_tool_call(call)
                 if not tool_name2 or tool_name2 not in tool_registry:
@@ -269,22 +296,16 @@ class QueryEngine:
 
                 tool2 = tool_registry[tool_name2]
                 sig2 = _tool_sig(tool_name2, tool_args2)
-                if sig2 in self.executed_tool_sigs:
-                    self.messages.append(
-                        {
-                            "role": "tool",
-                            "name": tool_name2,
-                            "tool_call_id": call_id2,
-                            "content": json.dumps(
-                                {"ok": True, "skipped": True, "reason": "Duplicate tool call."},
-                                ensure_ascii=False,
-                            ),
-                        }
-                    )
+                cached2 = self.tool_result_cache.get(sig2)
+                if cached2 is not None:
+                    self.messages.append({"role": "tool", "name": tool_name2, "tool_call_id": call_id2, "content": cached2})
                     continue
                 try:
                     result2 = tool2.run(**tool_args2)
                     self.executed_tool_sigs.add(sig2)
+                    self.tool_result_cache[sig2] = result2
+                    executed_any = True
+                    duplicate_only = False
                 except PermissionError as e:
                     try:
                         payload2 = json.loads(str(e))
@@ -300,6 +321,7 @@ class QueryEngine:
                     return json.dumps(payload2, ensure_ascii=False)
                 except Exception as e:
                     result2 = json.dumps({"ok": False, "error": repr(e)}, ensure_ascii=False)
+                    duplicate_only = False
 
                 self.messages.append(
                     {"role": "tool", "name": tool_name2, "tool_call_id": call_id2, "content": result2}
@@ -308,9 +330,32 @@ class QueryEngine:
                     self.messages.append(
                         {
                             "role": "system",
-                            "content": f"[Tool executed] {tool_name2} has been executed successfully. Do not call it again with the same arguments unless the user explicitly asks.",
+                            "content": f"[Tool executed] '{tool_name2}:{call_id2}' has been executed successfully.",
                         }
                     )
+
+            if (not executed_any) and duplicate_only:
+                self.messages.append(
+                    {
+                        "role": "system",
+                        "content": "[Loop guard] Tools were repeatedly called with the same arguments and served from cache. Please provide the final answer without calling tools again.",
+                    }
+                )
+                system_prompt3, user_prompt3 = self._build_prompts(
+                    user_id=user_id, session_id=session_id, instructions=instructions, subagent=False
+                )
+                model_msg3 = call_model(
+                    self.config.model_name,
+                    system_prompt=system_prompt3,
+                    user_prompt=user_prompt3,
+                    tools=[],
+                    tool_choice="none",
+                )
+                assistant_text3 = str(model_msg3.get("content") or "").strip()
+                if assistant_text3:
+                    self.messages.append({"role": "assistant", "content": assistant_text3})
+                    final_text = assistant_text3
+                break
 
         self.messages = self.context_manager.compact_messages(self.messages, user_id=user_id, session_id=session_id)
         from claude_agent.memory.auto_memory import AutoMemory
@@ -396,3 +441,12 @@ class QueryEngine:
                 elif isinstance(raw_args, dict):
                     args = dict(raw_args)
         return tool_name, args, call_id
+
+
+if __name__ == "__main__":
+    import os
+
+    path = r"C:\Users\18415\Desktop"
+    # 展开环境变量
+    expanded_path = os.path.expandvars(path)
+    print(expanded_path)
