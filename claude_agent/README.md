@@ -1,5 +1,5 @@
 # PyClaude多会话智能助手系统
-&emsp;&emsp;![](PyClaude.jpg) 
+&emsp;&emsp;<img src="PyClaude.jpg" height="400">
 ### PyClaude是什么？
 *借鉴Claude Code的框架设计思路*<br>
 *一个基于 FastAPI + ReAct 架构 的多用户、多会话、可视化智能 Agent 系统，支持工具调用、上下文管理、长期记忆、会话隔离、前端可视化交互。*
