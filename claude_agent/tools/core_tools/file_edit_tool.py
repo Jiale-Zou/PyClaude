@@ -30,7 +30,7 @@ class FileEditOutput(BaseModel):
 class FileEditTool(BaseTool):
     name: str = "file_edit"
     search_hint: str = "对文件做精确字符串替换，适合批量改名、更新配置与修复文本"
-    description: str = "Edit a file on disk."
+    description: str = "Edit a file on disk. Accept absolute path/environment variable path."
     input_schema = FileEditInput
     output_schema = FileEditOutput
     needs_permission: bool = True
