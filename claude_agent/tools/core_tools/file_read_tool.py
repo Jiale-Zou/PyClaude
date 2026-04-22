@@ -33,7 +33,7 @@ class FileReadOutput(BaseModel):
 class FileReadTool(BaseTool):
     name: str = "file_read"
     search_hint: str = "读取本地文件内容，支持文本/图片/PDF/Office并做大小截断"
-    description: str = "Read a file from disk, such as picture, pdf, .docx, excel, txt and many other types of files."
+    description: str = "Read a file from disk, such as picture, pdf, .docx, excel, txt and many other types of files. Accept absolute path/environment variable path."
     input_schema = FileReadInput
     output_schema = FileReadOutput
     needs_permission: bool = False
