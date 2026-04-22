@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude Agent</title>
+    <link rel="stylesheet" href="./assets/css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="left">
+          user_id: <span id="topUserId">-</span>
+        </div>
+        <div class="center">
+          <span id="topSessionCreatedAt">-</span>
+          <span><span id="statusDot" class="dot idle"></span><span id="statusText">空闲</span></span>
+          <span id="topClock">-</span>
+        </div>
+        <div class="right">
+          <button id="exportBtn" class="btn secondary" type="button">导出 MD</button>
+          <button id="clearBtn" class="btn secondary" type="button">清空上下文</button>
+        </div>
+      </header>
+
+      <div class="main-grid">
+        <aside class="sidebar left">
+          <div class="sidebar-header">
+            <div class="sidebar-title">Sessions</div>
+          </div>
+          <div class="sidebar-sub">
+            <select id="userSelect" class="select"></select>
+            <input id="sessionSearch" class="input" placeholder="搜索 session / 关键词" />
+          </div>
+          <div id="sessionList" class="session-list"></div>
+          <div class="sidebar-sub">
+            <input id="newSessionId" class="input" placeholder="新会话ID" />
+            <button id="createSessionBtn" class="btn primary" type="button">新建会话</button>
+          </div>
+        </aside>
+
+        <main class="chat">
+          <div id="chatLog" class="chat-history">
+            <div class="chat-inner" id="chatInner"></div>
+          </div>
+          <form id="chatForm" class="chat-inputbar">
+            <textarea id="chatInput" placeholder="输入消息…" autocomplete="off"></textarea>
+            <button id="sendBtn" class="btn primary" type="submit">发送</button>
+          </form>
+        </main>
+
+        <aside class="sidebar right">
+          <div class="sidebar-header">
+            <div class="sidebar-title">Files</div>
+            <button id="refreshFilesBtn" class="btn secondary" type="button">刷新</button>
+          </div>
+          <div id="fileList" class="file-list"></div>
+        </aside>
+      </div>
+
+      <div id="drawer" class="drawer">
+        <div class="drawer-header">
+          <div id="drawerPath" class="drawer-path">-</div>
+          <button id="drawerCloseBtn" class="btn secondary" type="button">关闭</button>
+        </div>
+        <div class="drawer-body">
+          <pre id="drawerGutter" class="drawer-gutter"></pre>
+          <textarea id="drawerEditor" class="drawer-editor"></textarea>
+        </div>
+        <div class="drawer-actions">
+          <button id="drawerSaveBtn" class="btn primary" type="button">保存</button>
+        </div>
+      </div>
+
+      <div id="toastHost" class="toast-host"></div>
+    </div>
+    <script type="module" src="./assets/js/app.js"></script>
+  </body>
+</html>
