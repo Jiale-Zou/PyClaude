@@ -85,12 +85,12 @@ pip install fastapi uvicorn pydantic
 Web 启动
 ```
 cd claude_agent
-python -m claude_agent.main
+python -m claude_agent.main.py
 ```
 
 ### 2. CLI 命令行
 ```
-python -m claude_agent.core.agent_loop
+python -m claude_agent.core.agent_loop.py
 ```
 
 
