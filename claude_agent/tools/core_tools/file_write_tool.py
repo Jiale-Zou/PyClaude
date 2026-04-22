@@ -27,7 +27,7 @@ class FileWriteOutput(BaseModel):
 class FileWriteTool(BaseTool):
     name: str = "file_write"
     search_hint: str = "创建或覆盖写入文件内容，适合生成配置与保存结果到磁盘"
-    description: str = "Write a file to disk."
+    description: str = "Write a file to disk. Accept absolute path/environment variable path."
     input_schema = FileWriteInput
     output_schema = FileWriteOutput
     needs_permission: bool = True
