@@ -441,12 +441,3 @@ class QueryEngine:
                 elif isinstance(raw_args, dict):
                     args = dict(raw_args)
         return tool_name, args, call_id
-
-
-if __name__ == "__main__":
-    import os
-
-    path = r"C:\Users\18415\Desktop"
-    # 展开环境变量
-    expanded_path = os.path.expandvars(path)
-    print(expanded_path)
