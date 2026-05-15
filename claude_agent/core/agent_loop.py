@@ -12,6 +12,7 @@ class AgentLoop:
     session_id: str = "cli"
 
     def run(self) -> None:
+        print("PyClaude start...")
         while True:
             user_input = input("> ").strip()
             if not user_input:

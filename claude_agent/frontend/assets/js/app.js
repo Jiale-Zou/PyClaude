@@ -2,15 +2,20 @@ import {
   clearSession,
   confirmChat,
   createSession,
+  createKnowledgeBase,
+  deleteKnowledgeBase,
   getConfigFile,
+  getKnowledgeBase,
   getSessionMessages,
   getUserMemoryFile,
+  listKnowledgeBases,
   listSessions,
   listUsers,
   saveUserMemoryFile,
   sendChat,
+  updateKnowledgeBase,
 } from "./api.js";
-import { appendMessage, permissionPrompt, renderMessages, setOptions, setStatus, toast } from "./ui.js";
+import { appendMessage, confirmDialog, permissionPrompt, renderMessages, setOptions, setStatus, toast } from "./ui.js";
 
 const els = {
   topUserId: document.getElementById("topUserId"),
@@ -35,6 +40,8 @@ const els = {
 
   refreshFilesBtn: document.getElementById("refreshFilesBtn"),
   fileList: document.getElementById("fileList"),
+  createKbBtn: document.getElementById("createKbBtn"),
+  kbList: document.getElementById("kbList"),
 
   drawer: document.getElementById("drawer"),
   drawerPath: document.getElementById("drawerPath"),
@@ -42,6 +49,9 @@ const els = {
   drawerGutter: document.getElementById("drawerGutter"),
   drawerCloseBtn: document.getElementById("drawerCloseBtn"),
   drawerSaveBtn: document.getElementById("drawerSaveBtn"),
+
+  busyOverlay: document.getElementById("busyOverlay"),
+  busyText: document.getElementById("busyText"),
 
   toastHost: document.getElementById("toastHost"),
 };
@@ -53,6 +63,7 @@ const state = {
   messages: [],
   createdAt: "",
   openedFile: null,
+  kbItems: [],
 };
 
 function nowClockText() {
@@ -63,6 +74,22 @@ function nowClockText() {
 
 function updateClock() {
   els.topClock.textContent = nowClockText();
+}
+
+function setBusy(on, text = "处理中…") {
+  if (!els.busyOverlay) return;
+  els.busyText.textContent = String(text || "处理中…");
+  els.busyOverlay.style.display = on ? "grid" : "none";
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  const chunk = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
 }
 
 function safeParseJson(text) {
@@ -201,8 +228,8 @@ function updateGutter(text) {
   els.drawerGutter.textContent = nums.join("\n");
 }
 
-function openDrawer({ path, content, editable, kind }) {
-  state.openedFile = { path, kind, editable: !!editable };
+function openDrawer({ path, content, editable, kind, kbName }) {
+  state.openedFile = { path, kind, editable: !!editable, kbName: kbName || "" };
   els.drawerPath.textContent = String(path || "-");
   els.drawerPath.title = String(path || "");
   els.drawerEditor.value = String(content || "");
@@ -217,6 +244,147 @@ function openDrawer({ path, content, editable, kind }) {
 function closeDrawer() {
   state.openedFile = null;
   els.drawer.classList.remove("open");
+}
+
+function _sanitizeKbName(s) {
+  const v = String(s || "").trim();
+  if (!v) return "";
+  if (v.includes("/") || v.includes("\\") || v.includes("..")) return "";
+  return v;
+}
+
+async function openKbCreateModal() {
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+
+    const modal = document.createElement("div");
+    modal.className = "modal";
+
+    const title = document.createElement("div");
+    title.className = "modal-title";
+    title.textContent = "创建知识库";
+
+    const body = document.createElement("div");
+    body.className = "modal-body";
+    body.style.whiteSpace = "normal";
+
+    const nameInput = document.createElement("input");
+    nameInput.className = "input";
+    nameInput.placeholder = "名称（kb_name）";
+
+    const descInput = document.createElement("input");
+    descInput.className = "input";
+    descInput.placeholder = "描述（可选）";
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.className = "input";
+    fileInput.accept = ".txt,.md,.doc,.docx";
+
+    const contentInput = document.createElement("textarea");
+    contentInput.className = "input";
+    contentInput.style.height = "160px";
+    contentInput.style.resize = "vertical";
+    contentInput.placeholder = "内容（可粘贴或上传文件自动填充）";
+
+    fileInput.addEventListener("change", async () => {
+      const f = fileInput.files?.[0];
+      if (!f) return;
+      const name = String(f.name || "").toLowerCase();
+      if (name.endsWith(".docx")) {
+        setBusy(true, "正在解析 DOCX…");
+        try {
+          const buf = await f.arrayBuffer();
+          const payload = {
+            filename: String(f.name || ""),
+            data_base64: arrayBufferToBase64(buf),
+          };
+          const res = await fetch(`/api/users/${encodeURIComponent(state.userId)}/rag/extract-text`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          contentInput.value = String(data?.content || "");
+          if (!data?.ok) {
+            toast(els.toastHost, String(data?.error || "DOCX 解析失败"), { variant: "warn" });
+          }
+        } catch (e) {
+          contentInput.value = "";
+          toast(els.toastHost, String(e?.message || e || "DOCX 解析失败"), { variant: "warn" });
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
+      try {
+        const text = await f.text();
+        contentInput.value = text;
+      } catch {
+        contentInput.value = "";
+      }
+    });
+
+    const stack = document.createElement("div");
+    stack.style.display = "grid";
+    stack.style.gap = "10px";
+    stack.appendChild(nameInput);
+    stack.appendChild(descInput);
+    stack.appendChild(fileInput);
+    stack.appendChild(contentInput);
+    body.appendChild(stack);
+
+    const actions = document.createElement("div");
+    actions.className = "modal-actions";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "modal-btn secondary";
+    cancelBtn.textContent = "取消";
+
+    const okBtn = document.createElement("button");
+    okBtn.type = "button";
+    okBtn.className = "modal-btn primary";
+    okBtn.textContent = "创建";
+
+    const cleanup = (result) => {
+      document.removeEventListener("keydown", onKeyDown);
+      backdrop.remove();
+      resolve(result);
+    };
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") cleanup(null);
+    };
+
+    cancelBtn.addEventListener("click", () => cleanup(null));
+    okBtn.addEventListener("click", () => {
+      const kbName = _sanitizeKbName(nameInput.value);
+      if (!kbName) {
+        toast(els.toastHost, "知识库名称不合法", { variant: "warn" });
+        return;
+      }
+      cleanup({
+        kb_name: kbName,
+        description: String(descInput.value || ""),
+        content: String(contentInput.value || ""),
+      });
+    });
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) cleanup(null);
+    });
+
+    document.addEventListener("keydown", onKeyDown);
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    modal.appendChild(title);
+    modal.appendChild(body);
+    modal.appendChild(actions);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    nameInput.focus();
+  });
 }
 
 async function refreshFiles() {
@@ -251,6 +419,90 @@ async function refreshFiles() {
   }
 }
 
+async function refreshKnowledgeBases() {
+  if (!state.userId) {
+    els.kbList.innerHTML = "";
+    state.kbItems = [];
+    return;
+  }
+  let data;
+  try {
+    data = await listKnowledgeBases(state.userId);
+  } catch (e) {
+    els.kbList.innerHTML = "";
+    state.kbItems = [];
+    toast(els.toastHost, String(e?.message || e || "知识库加载失败"), { variant: "warn" });
+    return;
+  }
+  const items = data?.items || [];
+  state.kbItems = items;
+  els.kbList.innerHTML = "";
+  for (const it of items) {
+    const kbName = String(it.kb_name || "");
+    const row = document.createElement("div");
+    row.className = "file-item kb-row";
+
+    const left = document.createElement("div");
+    left.style.display = "grid";
+    left.style.gap = "4px";
+
+    const name = document.createElement("div");
+    name.className = "file-name";
+    name.textContent = kbName || "（未命名）";
+
+    const desc = document.createElement("div");
+    desc.className = "file-path";
+    const d = String(it.description || "").trim();
+    desc.textContent = d || "（无描述）";
+    desc.title = d;
+
+    left.appendChild(name);
+    left.appendChild(desc);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "kb-del";
+    delBtn.textContent = "删除";
+    delBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!kbName) return;
+      const ok = await confirmDialog(`确认删除知识库：${kbName} ?`, {
+        title: "删除知识库",
+        yesText: "删除",
+        noText: "取消",
+      });
+      if (!ok) return;
+      try {
+        const resp = await deleteKnowledgeBase(state.userId, kbName);
+        if (!resp?.ok) {
+          toast(els.toastHost, String(resp?.error || "删除失败"), { variant: "warn" });
+          return;
+        }
+        await refreshKnowledgeBases();
+        toast(els.toastHost, `已删除：${kbName}`, { variant: "info" });
+      } catch (err) {
+        toast(els.toastHost, String(err?.message || err || "删除失败"), { variant: "warn" });
+      }
+    });
+
+    row.appendChild(left);
+    row.appendChild(delBtn);
+    row.addEventListener("click", async () => {
+      if (!kbName) return;
+      const kb = await getKnowledgeBase(state.userId, kbName);
+      openDrawer({
+        kind: "kb",
+        path: `KB: ${kbName}${kb.description ? " — " + kb.description : ""}`,
+        content: kb.content || "",
+        editable: true,
+        kbName,
+      });
+    });
+    els.kbList.appendChild(row);
+  }
+}
+
 async function handleReply(replyText) {
   const obj = safeParseJson(replyText);
   if (obj && typeof obj === "object" && obj.decision === "confirm") {
@@ -280,6 +532,7 @@ function bindEvents() {
     await refreshSessions();
     await loadSessionMessages();
     await refreshFiles();
+    await refreshKnowledgeBases();
   });
 
   els.sessionSearch.addEventListener("input", () => renderSessionList());
@@ -340,6 +593,26 @@ function bindEvents() {
     toast(els.toastHost, "已刷新", { variant: "info" });
   });
 
+  els.createKbBtn.addEventListener("click", async () => {
+    if (!state.userId) return;
+    const payload = await openKbCreateModal();
+    if (!payload) return;
+    try {
+      setBusy(true, "正在创建知识库…");
+      const resp = await createKnowledgeBase(state.userId, payload);
+      if (!resp?.ok) {
+        toast(els.toastHost, String(resp?.error || "创建失败"), { variant: "warn" });
+        return;
+      }
+      await refreshKnowledgeBases();
+      toast(els.toastHost, `已创建知识库：${payload.kb_name}`, { variant: "info" });
+    } catch (e) {
+      toast(els.toastHost, String(e?.message || e || "创建失败"), { variant: "warn" });
+    } finally {
+      setBusy(false);
+    }
+  });
+
   els.drawerCloseBtn.addEventListener("click", () => closeDrawer());
   els.drawerEditor.addEventListener("input", () => updateGutter(els.drawerEditor.value));
   els.drawerEditor.addEventListener("scroll", () => {
@@ -351,6 +624,17 @@ function bindEvents() {
     if (opened.kind === "memory") {
       await saveUserMemoryFile(state.userId, els.drawerEditor.value);
       toast(els.toastHost, "已保存", { variant: "info" });
+    } else if (opened.kind === "kb") {
+      const kbName = String(opened.kbName || "");
+      if (!kbName) return;
+      try {
+        setBusy(true, "正在更新知识库…");
+        await updateKnowledgeBase(state.userId, kbName, { content: els.drawerEditor.value });
+        toast(els.toastHost, "已保存", { variant: "info" });
+        await refreshKnowledgeBases();
+      } finally {
+        setBusy(false);
+      }
     }
   });
 }
@@ -364,6 +648,7 @@ async function boot() {
   await refreshSessions();
   await loadSessionMessages();
   await refreshFiles();
+  await refreshKnowledgeBases();
 }
 
 boot().catch((err) => {

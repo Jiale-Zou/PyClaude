@@ -28,7 +28,7 @@ def get_state() -> AppState:
         _DEFAULT_STATE = AppState(
             config=config,
             user_manager=UserManager(storage_root=storage_root),
-            session_manager=SessionManager(),
+            session_manager=SessionManager(storage_root=storage_root),
             agent_manager=AgentManager(),
         )
     return _DEFAULT_STATE

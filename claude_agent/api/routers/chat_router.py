@@ -26,6 +26,7 @@ def chat(
     agent.messages = list(session.messages)
     reply = agent.run(req.message, user_id=user_id, session_id=session_id)
     session.messages = [dict(role=str(m.get("role", "")), content=str(m.get("content", ""))) for m in agent.messages]
+    session_manager.save_session(user_id, session)
     return ChatResponse(session_id=session_id, reply=reply)
 
 
@@ -48,4 +49,5 @@ def confirm_tool(
     agent.messages = list(session.messages)
     reply = agent.confirm_pending(user_id=user_id, session_id=session_id, confirmed=bool(req.confirmed))
     session.messages = [dict(role=str(m.get("role", "")), content=str(m.get("content", ""))) for m in agent.messages]
+    session_manager.save_session(user_id, session)
     return ChatResponse(session_id=session_id, reply=reply)

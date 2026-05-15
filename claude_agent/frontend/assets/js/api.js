@@ -85,6 +85,46 @@ export async function saveUserMemoryFile(userId, content) {
   return await res.json();
 }
 
+export async function listKnowledgeBases(userId) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/rag/kbs`);
+  if (!res.ok) throw new Error("Failed to list knowledge bases");
+  return await res.json();
+}
+
+export async function getKnowledgeBase(userId, kbName) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/rag/kbs/${encodeURIComponent(kbName)}`);
+  if (!res.ok) throw new Error("Failed to load knowledge base");
+  return await res.json();
+}
+
+export async function createKnowledgeBase(userId, payload) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/rag/kbs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) throw new Error("Failed to create knowledge base");
+  return await res.json();
+}
+
+export async function updateKnowledgeBase(userId, kbName, payload) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/rag/kbs/${encodeURIComponent(kbName)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) throw new Error("Failed to update knowledge base");
+  return await res.json();
+}
+
+export async function deleteKnowledgeBase(userId, kbName) {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/rag/kbs/${encodeURIComponent(kbName)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete knowledge base");
+  return await res.json();
+}
+
 export async function checkCommand(command) {
   const res = await fetch(`/api/security/command/check?command=${encodeURIComponent(command)}`);
   if (!res.ok) throw new Error("Failed to check command");

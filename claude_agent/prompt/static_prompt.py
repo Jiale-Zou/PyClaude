@@ -29,12 +29,13 @@ def _collect_core_tools() -> list[dict[str, object]]:
         FileWriteTool,
         GlobTool,
         GrepTool,
+        RagTool,
         SkillTool,
         TodoWriteTool,
         ToolSearchTool
     )
 
-    tools = [BashTool(), FileReadTool(), FileWriteTool(), FileEditTool(), GlobTool(), GrepTool(), AgentTool(), TodoWriteTool(), ToolSearchTool(), SkillTool()]
+    tools = [BashTool(), FileReadTool(), FileWriteTool(), FileEditTool(), GlobTool(), GrepTool(), AgentTool(), TodoWriteTool(), ToolSearchTool(), SkillTool(), RagTool()]
     out: list[dict[str, object]] = []
     for t in tools:
         out.append(

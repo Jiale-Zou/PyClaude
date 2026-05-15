@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends
 
-from claude_agent.api.dependencies import get_agent_manager, get_session_manager
+from claude_agent.api.dependencies import get_agent_manager, get_session_manager, get_state
 from claude_agent.api.schemas.session_schema import SessionCreateRequest, SessionListResponse
 from claude_agent.manager.agent_manager import AgentManager
 from claude_agent.manager.session_manager import SessionManager
@@ -41,7 +41,7 @@ def create_session(
     session_manager: SessionManager = Depends(get_session_manager),
 ) -> SessionListResponse:
     session_manager.create_session(user_id=user_id, session_id=req.session_id)
-    storage_root = Path("storage")
+    storage_root = Path(get_state().config.storage_dir)
     ensure_pyclaude_md()
     ensure_user_memory(storage_root, user_id)
     sessions = session_manager.list_sessions(user_id)
@@ -78,5 +78,6 @@ def clear_session(
     session = session_manager.get_session(user_id=user_id, session_id=session_id)
     if session is not None:
         session.messages = []
+        session_manager.save_session(user_id, session)
     agent_manager.reset_agent(user_id=user_id, session_id=session_id)
     return {"ok": True, "user_id": user_id, "session_id": session_id}

@@ -79,6 +79,59 @@ def load_mcp_info(config_path: Path) -> str:
     return "\n".join(lines)
 
 
+def load_kb_info(*, user_id: str) -> str:
+    '''读取已有知识库的 名称+介绍'''
+    uid = str(user_id or "").strip()
+    if not uid:
+        return ""
+    rag_root = Path(__file__).resolve().parent.parent / "rag" / "storage_data" / uid
+    if not rag_root.exists():
+        return ""
+
+    try:
+        from claude_agent.rag.rag_self_knowledge.api import list_knowledge_bases
+        from claude_agent.rag.rag_self_knowledge.config.settings import Settings, create_default_services
+
+        default = Settings()
+        settings = Settings(
+            sqlite_path=rag_root / "relational_data" / "rag_self_knowledge.sqlite3",
+            blobs_root=rag_root / "object_data",
+            vector_root=rag_root / "vector_data",
+            embedding_dim=default.embedding_dim,
+            chunk_size=default.chunk_size,
+            chunk_overlap=default.chunk_overlap,
+            sentence_transformer_model_path=default.sentence_transformer_model_path,
+            enable_summary_index=default.enable_summary_index,
+            enable_subq_index=default.enable_subq_index,
+            summary_group_size=default.summary_group_size,
+            summary_max_chars=default.summary_max_chars,
+            subq_per_chunk=default.subq_per_chunk,
+            min_score=default.min_score,
+            enable_diversity=default.enable_diversity,
+            diversity_key=default.diversity_key,
+        )
+        services = create_default_services(settings=settings)
+        items = list_knowledge_bases(services=services) or []
+    except Exception:
+        return ""
+
+    if not items:
+        return ""
+    lines: list[str] = ["# Knowledge Bases"]
+    for it in items[:50]:
+        name = str(it.get("kb_name", "")).strip()
+        desc = str(it.get("description") or "").strip()
+        if not name:
+            continue
+        if desc:
+            lines.append(f"- {name}: {desc}")
+        else:
+            lines.append(f"- {name}")
+    lines.append("")
+    lines.append("To search, use rag_tool with action=search and kb_name.")
+    return "\n".join(lines).strip()
+
+
 def _safe_read_text(path: Path, max_chars: int = 200_000) -> str:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -308,7 +361,8 @@ def build_dynamic_prompt(ctx: DynamicPromptContext) -> str:
     if not mcp_block:
         mcp_cfg = Path(__file__).resolve().parent.parent / "mcp" / "config.json"
         mcp_block = load_mcp_info(mcp_cfg)
+    kb_info = load_kb_info(user_id=ctx.user_id).strip()
     auto_memory = build_auto_memory_prompt(ctx).strip()
     msgs = _format_messages(ctx.messages).strip() # 3. 格式化对话历史
-    parts = [p for p in [env, mcp_block, auto_memory, ctx.instructions.strip() if ctx.instructions else "", msgs] if p]
+    parts = [p for p in [env, mcp_block, kb_info, auto_memory, ctx.instructions.strip() if ctx.instructions else "", msgs] if p]
     return "\n\n".join(parts)

@@ -122,6 +122,8 @@ class QueryEngine:
                     continue
 
                 tool = tool_registry[tool_name] # 5. 执行工具
+                tool_args.setdefault("user_id", user_id)
+                tool_args.setdefault("session_id", session_id)
                 sig = _tool_sig(tool_name, tool_args)
                 cached = self.tool_result_cache.get(sig)
                 if cached is not None:
@@ -295,6 +297,8 @@ class QueryEngine:
                     continue
 
                 tool2 = tool_registry[tool_name2]
+                tool_args2.setdefault("user_id", user_id)
+                tool_args2.setdefault("session_id", session_id)
                 sig2 = _tool_sig(tool_name2, tool_args2)
                 cached2 = self.tool_result_cache.get(sig2)
                 if cached2 is not None:
@@ -401,6 +405,7 @@ class QueryEngine:
             FileWriteTool,
             GlobTool,
             GrepTool,
+            RagTool,
             SkillTool,
             TodoWriteTool,
             ToolSearchTool,
@@ -417,6 +422,7 @@ class QueryEngine:
             TodoWriteTool(),
             ToolSearchTool(),
             SkillTool(),
+            RagTool(),
         ]
         return {t.name: t for t in tools}
 
@@ -441,3 +447,12 @@ class QueryEngine:
                 elif isinstance(raw_args, dict):
                     args = dict(raw_args)
         return tool_name, args, call_id
+
+
+if __name__ == "__main__":
+    import os
+
+    path = r"C:\Users\18415\Desktop"
+    # 展开环境变量
+    expanded_path = os.path.expandvars(path)
+    print(expanded_path)

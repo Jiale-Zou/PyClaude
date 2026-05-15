@@ -55,6 +55,12 @@
             <button id="refreshFilesBtn" class="btn secondary" type="button">刷新</button>
           </div>
           <div id="fileList" class="file-list"></div>
+          <div class="side-divider"></div>
+          <div class="sidebar-header">
+            <div class="sidebar-title">Knowledge Bases</div>
+            <button id="createKbBtn" class="btn secondary" type="button">创建</button>
+          </div>
+          <div id="kbList" class="file-list"></div>
         </aside>
       </div>
 
@@ -69,6 +75,13 @@
         </div>
         <div class="drawer-actions">
           <button id="drawerSaveBtn" class="btn primary" type="button">保存</button>
+        </div>
+      </div>
+
+      <div id="busyOverlay" class="busy-overlay" style="display: none">
+        <div class="busy-card">
+          <div class="spinner"></div>
+          <div id="busyText" class="busy-text">处理中…</div>
         </div>
       </div>
 
