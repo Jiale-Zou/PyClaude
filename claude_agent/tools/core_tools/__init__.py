@@ -6,6 +6,7 @@ __all__ = [
     "FileWriteTool",
     "GlobTool",
     "GrepTool",
+    "RagTool",
     "SkillTool",
     "ToolSearchTool",
     "TodoWriteTool",
@@ -18,6 +19,7 @@ from claude_agent.tools.core_tools.file_read_tool import FileReadTool
 from claude_agent.tools.core_tools.file_write_tool import FileWriteTool
 from claude_agent.tools.core_tools.glob_tool import GlobTool
 from claude_agent.tools.core_tools.grep_tool import GrepTool
+from claude_agent.tools.core_tools.rag_tool import RagTool
 from claude_agent.tools.core_tools.skill_tool import SkillTool
 from claude_agent.tools.core_tools.tool_search_tool import ToolSearchTool
 from claude_agent.tools.core_tools.todo_write_tool import TodoWriteTool

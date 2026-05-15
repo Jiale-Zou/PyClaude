@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import os
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from claude_agent.tools.base_tool import BaseTool
 from claude_agent.security.path_validator import PathDecisionType, PathValidator
@@ -16,6 +17,16 @@ class FileWriteInput(BaseModel):
     content: str # 要写入的文本内容
     encoding: str = "utf-8"
     confirmed: bool = False
+
+    @field_validator('file_path', mode='before')
+    @classmethod
+    def expand_file_path(cls, v: str) -> str:
+        """在验证前展开文件路径中的环境变量"""
+        if isinstance(v, str):
+            v = v.strip()
+            v = os.path.expandvars(v)
+            v = os.path.expanduser(v)
+        return v
 
 
 class FileWriteOutput(BaseModel):

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 import base64
 import mimetypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from claude_agent.tools.base_tool import BaseTool
 
@@ -17,6 +18,16 @@ class FileReadInput(BaseModel):
     max_bytes: int = 2_000_000 # 二进制文件最大读取字节数（约2MB）
     max_chars: int = 20_000 # 文本文件最大读取字符数（约2万个字符）
     confirmed: bool = False
+
+    @field_validator('file_path', mode='before')
+    @classmethod
+    def expand_file_path(cls, v: str) -> str:
+        """在验证前展开文件路径中的环境变量"""
+        if isinstance(v, str):
+            v = v.strip()
+            v = os.path.expandvars(v)
+            v = os.path.expanduser(v)
+        return v
 
 
 class FileReadOutput(BaseModel):
@@ -33,7 +44,7 @@ class FileReadOutput(BaseModel):
 class FileReadTool(BaseTool):
     name: str = "file_read"
     search_hint: str = "读取本地文件内容，支持文本/图片/PDF/Office并做大小截断"
-    description: str = "Read a file from disk, such as picture, pdf, .docx, excel, txt and many other types of files. Accept absolute path/environment variable path."
+    description: str = "Read a file() from disk, such as picture, pdf, .docx, excel, txt and many other types of files. Accept absolute path/environment variable path."
     input_schema = FileReadInput
     output_schema = FileReadOutput
     needs_permission: bool = False

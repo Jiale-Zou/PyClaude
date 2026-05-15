@@ -4,15 +4,16 @@
 *借鉴Claude Code的框架设计思路*<br>
 *一个基于 FastAPI + ReAct 架构 的多用户、多会话、可视化智能 Agent 系统，支持工具调用、上下文管理、长期记忆、会话隔离、前端可视化交互。*
 
-| 模块     | 完成 | 未完成 |
-|--------|---|---|
-| 记忆系统   | ✅ |   |
-| 上下文管理  | ✅ |   |
-| 渐进式加载  | ✅ |   |
-| queryEngine | ✅ |   |
-| 权限管理   | ✅ |   |
+| 模块    | 完成 | 未完成         |
+|-------|---|-------------|
+| 记忆系统  | ✅ |             |
+| 上下文管理 | ✅ |             |
+| 渐进式加载 | ✅ |             |
+| queryEngine | ✅ |             |
+| 权限管理  | ✅ |             |
 | 子Agent | ✅ sub agent | ❌agent team |
-| 提示词分区  | ✅ |   |
+| 提示词分区 | ✅ |             |
+| 个人知识库 | ✅ |             |
 
 
 ## 项目结构
@@ -47,6 +48,7 @@ claude_agent/
 │   ├── dynamic_prompt.py       # 动态上下文
 │   ├── user_profile.py         # 用户画像（自定义md）
 │   └── prompt_builder.py       # 最终提示词拼接
+├── rag/                        # 个人知识库
 ├── multi_agent/                # 子Agent框架
 ├── api/                        # FastAPI 接口
 ├── manager/                    # 多用户/多会话管理
@@ -74,6 +76,7 @@ claude_agent/
     * 静态区: 包括PyClaude.md、工具信息、skill摘要
     * 动态区：包括环境信息、MCP、MEMORY.md、长期记忆、上下文
 7. 🔒 权限系统：路径校验、工具校验、human-in-loop
+8. 📂 个人知识库：支持创建和管理个人知识库，并使用RAG进行检索
 
 ## ⚡快速开始⚡
 ### 1. Web端
@@ -84,13 +87,15 @@ pip install fastapi uvicorn pydantic
 
 Web 启动
 ```
-cd claude_agent
-python -m claude_agent.main.py
+python -m claude_agent.main
 ```
 
 ### 2. CLI 命令行
 ```
-python -m claude_agent.core.agent_loop.py
+python -m claude_agent.core.agent_loop
 ```
 
+---
 
+## 个人知识库(2026.5.15新增)
+详见`rag\README.md`
